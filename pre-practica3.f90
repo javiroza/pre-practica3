@@ -9,8 +9,9 @@
 program pre_practica3
 implicit none
 double precision A,B,Eo(9),eps,xarrel,vect1(34),vect2(420),fu,dfu,dfu1(34),dfu2(420)
-double precision imatges1(34),derivades1(34),imatges2(420),derivades2(420),der(34),der2(420)
-integer niter,i,ndat1,ndat2
+double precision imatges1(34),derivades1(34),imatges2(420),derivades2(420)
+double precision v1,v2,v3 
+integer niter,i
 external fun
 
 !---------------- Arrels d'F(E) en [0,2pi] --> Bisecció ------------------!
@@ -24,7 +25,7 @@ B = 3.d0
 call Bisection(A,B,eps,fun,niter,xarrel)
 print*,""
 
-!------------- Arrels d'F(E) en [0,2pi] --> Newton-Raphson ---------------!
+!---------------- Arrels d'F(E) en [0,2pi] --> Newton-Raphson ----------------!
 Eo = (/ 0.1,0.2,0.67,0.7,1.,2.5,2.6,4.,5.4 /)
 open(12,file="P3-1920-res.dat")
 do i=1,9
@@ -34,10 +35,17 @@ do i=1,9
 enddo
 close(12)
 
+!---------------- Generació d'un arxiu auxiliar per gràfiques -----------------!
+v1 = 0.2d0
+v2 = 0.7d0
+v3 = 1.5d0
+call NewtonRapAux(v1,eps,fun,niter,xarrel,1)
+call NewtonRapAux(v2,eps,fun,niter,xarrel,2)
+call NewtonRapAux(v3,eps,fun,niter,xarrel,3)
+
 !---------------- Derivades numèriques d'F(E) en [0,2pi] -----------------!
 ! Generació dels vectors de 34 punts
-ndat1=34
-do i=1,ndat1
+do i=1,34
     vect1(i)=i*((2.d0*acos(-1.d0))/34.d0) ! Vector amb 34 valors x
     call fun(vect1(i),fu,dfu) 
     imatges1(i)=fu ! Vector amb les imatges de vect1
@@ -45,8 +53,7 @@ do i=1,ndat1
 enddo
 
 ! Generació dels vectors de 420 punts
-ndat2=420
-do i=1,ndat2
+do i=1,420
     vect2(i)=i*((2.d0*acos(-1.d0))/420.d0) ! Vector amb 420 valors x
     call fun(vect2(i),fu,dfu)
     imatges2(i)=fu ! Vector amb les imatges de vect2
@@ -55,26 +62,21 @@ enddo
 
 ! Escriptura en el fitxer 1 (34 valors)
 open(13,file="P3-1920-res3-n34.dat")
-call derfun(ndat1,vect1(ndat1),imatges1(ndat1),dfu1(ndat1)) ! L'output és dfu1(ndat1)
-do i=1,ndat1
-    write(13,*) vect1(i),imatges1(i),der(i),derivades1(i)
+call derfun(34,vect1,imatges1,dfu1) ! L'output és dfu1
+do i=1,34
+    write(13,*) vect1(i),imatges1(i),dfu1(i),derivades1(i)
 enddo
 close(13)
 
 ! Escriptura en el fitxer 2 (420 valors)
 open(14,file="P3-1920-res3-n420.dat")
-call derfun(ndat2,vect2(ndat1),imatges2(ndat1),dfu2(ndat2)) ! L'output és dfu2(ndat2)
-do i=1,ndat2
-    write(13,*) vect2(i),imatges2(i),der(i),derivades2(i)
+call derfun(420,vect2,imatges2,dfu2) ! L'output és dfu2
+do i=1,420
+    write(14,*) vect2(i),imatges2(i),dfu2(i),derivades2(i)
 enddo
 close(14)
 
 end program pre_practica3
-
-
-
-
-
 
 
 ! Subrutina NewtonRap --> retorna la posició d'un zero d'una funció donada
@@ -98,6 +100,36 @@ subroutine NewtonRap(x0,eps,function,niter,xarrel)
     return
 end subroutine NewtonRap
 
+! Subrutina NewtonRapAux --> Subrutina auxiliar
+subroutine NewtonRapAux(x0,eps,function,niter,xarrel,parametre)
+    implicit none
+    double precision x0,x1,eps,xarrel,fu,dfu
+    integer niter,parametre
+    niter = 1
+    if (parametre.eq.1) then
+        open(14,file="aux.dat")
+    else if (parametre.eq.2) then
+        open(14,file="aux2.dat")
+    else if (parametre.eq.3) then
+        open(14,file="aux3.dat")
+    endif
+12  call function(x0,fu,dfu)
+    x1 = x0-(fu/dfu)
+    if (abs(x1-x0).le.eps) then
+        xarrel = x1
+    else
+        write(14,*) niter,x1
+        x0 = x1
+        niter = niter+1
+        goto 12
+    endif
+    close(14)
+    print*,"Nombre d'iteracions:",niter
+    print*,"Arrel:",xarrel
+    print*,""
+    return
+end subroutine NewtonRapAux
+
 ! Subrutina Bisection --> retorna la posició d'un zero d'una funció donada
 subroutine Bisection(A,B,eps,function,niter,xarrel)
     implicit none
@@ -110,10 +142,10 @@ subroutine Bisection(A,B,eps,function,niter,xarrel)
         fa = fu
         call function(B,fu,dfu)
         fb = fu
-! Hi ha canvi de signe? Si és així, seguim
+    ! Hi ha canvi de signe? Si és així, seguim
         if ((fa*fb).lt.0.d0) then
             C = (A+B)/2.d0
-! L'interval és tant petit com es volia? Si és així, parem
+    ! L'interval és tant petit com es volia? Si és així, parem
             if ((B-A).lt.eps) then
                 niter = i
                 xarrel = C
@@ -121,13 +153,13 @@ subroutine Bisection(A,B,eps,function,niter,xarrel)
             else
                 call function(C,fu,dfu)
                 fc = fu
-! Hem trobat la solució exacta? Si és així, parem         
+    ! Hem trobat la solució exacta? Si és així, parem         
                 if (fc.eq.0.d0) then 
                     niter = i
                     xarrel = C
                     exit
                 else
-! En cas contrari, continuem iterant                    
+    ! En cas contrari, continuem iterant                    
                     if ((fa*fc).lt.0.d0) then
                         B = C
                     else if ((fc*fb).lt.0.d0) then
@@ -155,8 +187,8 @@ end subroutine Bisection
 subroutine fun(x,fu,dfu)
     implicit none
     double precision x,fu,dfu
-! P(E) = 35.d0/16.d0 + 0.5d0*x - (61.d0/20.d0)*x**2 + x**3
-! P'(E) = 0.5d0 - 2*(61.d0/20.d0)*x + 3*x**2
+    ! P(E) = 35.d0/16.d0 + 0.5d0*x - (61.d0/20.d0)*x**2 + x**3
+    ! P'(E) = 0.5d0 - 2*(61.d0/20.d0)*x + 3*x**2
     fu = sinh(x)*(35.d0/16.d0+0.5d0*x-(61.d0/20.d0)*x**2+x**3)
     dfu = cosh(x)*(0.5d0-2*(61.d0/20.d0)*x+3*x**2)+sinh(x)*(0.5d0-2*(61.d0/20.d0)*x+3*x**2)
     return 
@@ -165,16 +197,15 @@ end subroutine fun
 ! Subrutina derfun --> retorna la derivada d'una funció en un interval de punts
 subroutine derfun(ndat,x,fu,der)
     implicit none
-    double precision x(ndat),fu(ndat),der(ndat),h
+    double precision x(ndat),fu(ndat),der(ndat)
     integer ndat,i
-    h=(2.d0*acos(-1.d0))/ndat
     do i=1,ndat
         if (i.eq.1) then
-            der(i)=(fu(i+1)-fu(i))/h
+            der(i)=(fu(i+1)-fu(i))/(x(i+1)-x(i))
         else if (i.eq.ndat) then
-            der(i)=(fu(i)-fu(i-1))/h
+            der(i)=(fu(i)-fu(i-1))/(x(i)-x(i-1))
         else
-            der(i)=(fu(i+1)-fu(i-1))/(2*h)
+            der(i)=(fu(i+1)-fu(i-1))/(x(i+1)-x(i-1))
         endif
     enddo
     return 
